@@ -7,13 +7,13 @@ from sentence_transformers import SentenceTransformer
 import chromadb
 from chromadb.config import Settings
 
-from path import VECTOR_DB_DIR
+from src.path import VECTOR_DB_DIR
 
 # =========================================================
 # CONFIG
 # =========================================================
 
-VECTOR_DB_SCOPE = VECTOR_DB_DIR / "vector_db_scope"
+VECTOR_DB_INFO = VECTOR_DB_DIR / "vector_db_info"
 COLLECTION_NAME = "standards_scope"
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
@@ -45,7 +45,7 @@ def retrieve_relevant_documents(query: str, top_k: int = TOP_K):
     model = SentenceTransformer(MODEL_NAME)
 
     client = chromadb.PersistentClient(
-        path=str(VECTOR_DB_SCOPE),
+        path=str(VECTOR_DB_INFO),
         settings=Settings(anonymized_telemetry=False)
     )
 

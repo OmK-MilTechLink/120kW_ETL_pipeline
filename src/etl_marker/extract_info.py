@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import List, Dict, Set, Optional
 from fastapi import FastAPI, HTTPException
 
-from path import OUTPUT_JSON_DIR, OUTPUT_DIR
+from src.path import OUTPUT_JSON_DIR, OUTPUT_DIR
 
 # =========================================================
 # Configuration
@@ -12,6 +12,9 @@ from path import OUTPUT_JSON_DIR, OUTPUT_DIR
 
 SCOPE_DIR = OUTPUT_DIR / "scope"
 SCOPE_DIR.mkdir(parents=True, exist_ok=True)
+
+MIN_SUMMARY_WORDS = 60
+MAX_SUMMARY_WORDS = 80
 
 # =========================================================
 # Regex Patterns
@@ -44,6 +47,26 @@ def is_english(text: str, threshold: float = 0.80) -> bool:
 
 def starts_with_section_number(text: str) -> bool:
     return bool(re.match(r'^\d+(\.\d+)*\s+', text))
+
+# =========================================================
+# NEW: Scope Summary (ADDED ONLY)
+# =========================================================
+
+def build_scope_summary(scope_lines: List[str]) -> str:
+    """
+    Build a 40–60 word extractive summary from scope text.
+    Uses ONLY original scope text. No paraphrasing.
+    """
+    if not scope_lines:
+        return ""
+
+    full_text = " ".join(s.strip() for s in scope_lines if s.strip())
+    words = full_text.split()
+
+    if len(words) <= MAX_SUMMARY_WORDS:
+        return full_text.strip()
+
+    return " ".join(words[:MAX_SUMMARY_WORDS]).strip()
 
 # =========================================================
 # Title Extraction (UNCHANGED)
@@ -125,7 +148,7 @@ def extract_test_sections(blocks: List[Dict]) -> List[str]:
     return tests
 
 # =========================================================
-# Document Processing
+# Document Processing (ONLY summary added)
 # =========================================================
 
 def process_document(json_path: Path) -> Dict:
@@ -136,10 +159,13 @@ def process_document(json_path: Path) -> Dict:
         if page.get("block_type") == "Page":
             blocks.extend(page.get("children", []))
 
+    scope = extract_scope(json_path)
+
     return {
         "document_id": json_path.stem,
         "document_title": extract_document_title(blocks),
-        "scope": extract_scope(json_path),
+        "scope": scope,
+        "summary": build_scope_summary(scope),   # ✅ ADDED
         "tests": extract_test_sections(blocks),
     }
 

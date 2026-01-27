@@ -10,7 +10,7 @@ ETL_pipeline/
 │   │   │
 │   │   ├── vector_db_chunk/                  # ChromaDB for clause-level chunks
 │   │   │
-│   │   └── vector_db_scope/                  # ChromaDB for document scope embeddings
+│   │   └── vector_db_info/                   # ChromaDB for document info embeddings
 │   │
 │   └── output/
 │       │

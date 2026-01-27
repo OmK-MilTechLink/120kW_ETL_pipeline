@@ -5,14 +5,14 @@ from sentence_transformers import SentenceTransformer
 import chromadb
 from chromadb.config import Settings
 
-from path import OUTPUT_DIR, VECTOR_DB_DIR
+from src.path import OUTPUT_DIR, VECTOR_DB_DIR
 
 # =========================================================
 # CONFIG
 # =========================================================
 
 SCOPE_DIR = OUTPUT_DIR / "scope"
-VECTOR_DB_SCOPE = VECTOR_DB_DIR / "vector_db_scope"
+VECTOR_DB_INFO = VECTOR_DB_DIR / "vector_db_info"
 
 COLLECTION_NAME = "standards_scope"
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
@@ -27,7 +27,7 @@ def embed_all_scopes() -> int:
     model = SentenceTransformer(MODEL_NAME)
 
     client = chromadb.PersistentClient(
-        path=str(VECTOR_DB_SCOPE),
+        path=str(VECTOR_DB_INFOfo),
         settings=Settings(anonymized_telemetry=False)
     )
 
@@ -103,7 +103,7 @@ def embed_scope_api():
     return {
         "status": "success",
         "documents_embedded": count,
-        "vector_db": str(VECTOR_DB_SCOPE),
+        "vector_db": str(VECTOR_DB_INFO),
         "collection": COLLECTION_NAME
     }
 
