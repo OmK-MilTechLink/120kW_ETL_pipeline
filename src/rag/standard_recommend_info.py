@@ -3,6 +3,7 @@ import statistics
 from typing import List
 from fastapi import FastAPI
 from pydantic import BaseModel
+
 from sentence_transformers import SentenceTransformer
 import chromadb
 from chromadb.config import Settings
@@ -21,7 +22,7 @@ TOP_K = 5
 OVERFETCH_K = 20
 
 # =========================================================
-# UTILITIES
+# UTILITIES (UNCHANGED)
 # =========================================================
 
 def tokenize(text: str):
@@ -38,50 +39,37 @@ def z_score(value, mean, std):
     return (value - mean) / std
 
 # =========================================================
-# INPUT JSON → EMBEDDING TEXT
-# (SCOPE + TESTS + REGION, NO HARD-CODED LOGIC)
+# INPUT JSON → EMBEDDING TEXT (UNCHANGED)
 # =========================================================
 
 def input_json_to_embedding_text(input_json: dict) -> str:
-    """
-    Convert user input JSON into scope- and test-aligned
-    plain text suitable for direct embedding.
-    """
-
     parts = []
 
     product = input_json.get("product_details", {})
     req = input_json.get("testing_requirements", {})
     std = input_json.get("testing_standards", {})
 
-    # ---- Scope / applicability intent ----
     if product.get("eut_name"):
         parts.append(product["eut_name"])
-
     if product.get("industry"):
         parts.append(product["industry"])
-
     if product.get("industry_other"):
         parts.append(product["industry_other"])
-
     if product.get("signal_lines"):
         parts.append(product["signal_lines"])
 
-    # ---- Region (applicability context) ----
     if std.get("regions"):
         parts.extend(std["regions"])
 
-    # ---- Tests (EXPLICIT – matches scope JSON test sections) ----
     if req.get("test_type"):
         parts.append(req["test_type"])
-
     if req.get("selected_tests"):
         parts.extend(req["selected_tests"])
 
     return "\n".join(parts).strip()
 
 # =========================================================
-# CORE RETRIEVAL LOGIC
+# RETRIEVAL LOGIC (AI UNCHANGED)
 # =========================================================
 
 def retrieve_relevant_documents(embedding_text: str, top_k: int = TOP_K):
@@ -101,7 +89,7 @@ def retrieve_relevant_documents(embedding_text: str, top_k: int = TOP_K):
         embedding_text,
         normalize_embeddings=True
     ).tolist()
-    
+
     query_tokens = tokenize(embedding_text)
 
     results = collection.query(
@@ -118,15 +106,22 @@ def retrieve_relevant_documents(embedding_text: str, top_k: int = TOP_K):
 
     for i, similarity in enumerate(similarities):
         doc_text = results["documents"][0][i]
-        doc_tokens = tokenize(doc_text)
+        metadata = results["metadatas"][0][i]
 
+        doc_tokens = tokenize(doc_text)
         lexical = normalized_lexical_overlap(query_tokens, doc_tokens)
 
         score = z_score(similarity, mean_sim, std_sim) + lexical * 0.1
 
+        # ---- FIX: convert tests string → list[str] ----
+        tests_raw = metadata.get("tests", "")
+        tests_list = [t.strip() for t in tests_raw.split("\n") if t.strip()]
+
         ranked.append({
-            "document_id": results["metadatas"][0][i]["document_id"],
-            "document_text": doc_text,
+            "document_id": metadata.get("document_id"),
+            "heading": metadata.get("document_title", ""),
+            "summary": metadata.get("summary", ""),
+            "tests": tests_list,
             "similarity": round(similarity, 4),
             "score": round(score, 4)
         })
@@ -140,7 +135,7 @@ def retrieve_relevant_documents(embedding_text: str, top_k: int = TOP_K):
 
 app = FastAPI(
     title="Standards Recommendation API",
-    version="1.0"
+    version="2.6"
 )
 
 class RecommendationRequest(BaseModel):
@@ -149,7 +144,9 @@ class RecommendationRequest(BaseModel):
 
 class RecommendationResult(BaseModel):
     document_id: str
-    document_text: str
+    heading: str
+    summary: str
+    tests: List[str]
     similarity: float
     score: float
 

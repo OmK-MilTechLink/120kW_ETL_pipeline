@@ -53,19 +53,36 @@ def starts_with_section_number(text: str) -> bool:
 # =========================================================
 
 def build_scope_summary(scope_lines: List[str]) -> str:
-    
+    """
+    Build an extractive scope summary using only complete sentences.
+    No paraphrasing, no hallucination.
+    """
+
     if not scope_lines:
         return ""
 
     full_text = " ".join(s.strip() for s in scope_lines if s.strip())
-    words = full_text.split()
 
-    # Preserve existing behavior for short scopes
-    if len(words) <= MAX_SUMMARY_WORDS:
-        return full_text.strip()
+    # Normalize spacing
+    full_text = re.sub(r"\s+", " ", full_text).strip()
 
-    # --- NEW LOGIC (extractive, sentence-aware) ---
-    sentences = re.split(r'(?<=[.;])\s+', full_text)
+    # Split into candidate sentences (robust for standards text)
+    raw_sentences = re.split(r'(?<=[.;:])\s+(?=[A-Z0-9])', full_text)
+
+    def is_complete_sentence(s: str) -> bool:
+        words = s.split()
+        return (
+            len(words) >= 6 and
+            s[0].isalnum() and
+            s[-1] in ".;:" and
+            not starts_with_section_number(s)
+        )
+
+    sentences = [s.strip() for s in raw_sentences if is_complete_sentence(s)]
+
+    if not sentences:
+        # Fallback: join first MAX words cleanly
+        return " ".join(full_text.split()[:MAX_SUMMARY_WORDS])
 
     SCOPE_KEYWORDS = (
         "applies", "applicable", "covers", "includes", "including",
@@ -78,7 +95,7 @@ def build_scope_summary(scope_lines: List[str]) -> str:
         score = sum(1 for kw in SCOPE_KEYWORDS if kw in sent.lower())
         scored.append((idx, sent, score))
 
-    # Prefer scope-defining sentences, but keep determinism
+    # Prefer scope-defining sentences, keep determinism
     scored.sort(key=lambda x: (-x[2], x[0]))
 
     selected = []
@@ -95,9 +112,14 @@ def build_scope_summary(scope_lines: List[str]) -> str:
         if total_words >= MIN_SUMMARY_WORDS:
             break
 
-    # Fallback to original truncation logic if needed
     if not selected:
-        return " ".join(words[:MAX_SUMMARY_WORDS]).strip()
+        # Final fallback: first full sentences in order
+        total_words = 0
+        for sent in sentences:
+            selected.append(sent)
+            total_words += len(sent.split())
+            if total_words >= MIN_SUMMARY_WORDS:
+                break
 
     # Restore original document order
     selected.sort(key=lambda s: full_text.index(s))

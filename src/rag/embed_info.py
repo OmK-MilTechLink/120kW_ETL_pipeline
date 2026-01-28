@@ -20,7 +20,7 @@ MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 BATCH_SIZE = 64
 
 # =========================================================
-# CORE EMBEDDING LOGIC (UNCHANGED)
+# CORE EMBEDDING LOGIC (AI + FUNCTIONALITY UNCHANGED)
 # =========================================================
 
 def embed_all_scopes() -> int:
@@ -44,19 +44,28 @@ def embed_all_scopes() -> int:
 
         document_id = data.get("document_id")
         title = data.get("document_title") or ""
+        summary = data.get("summary", "")
         scope = data.get("scope", [])
         tests = data.get("tests", [])
 
         if not document_id:
             continue
 
+        # ---- EMBEDDING TEXT (UNCHANGED) ----
         embedding_text = "\n\n".join([title] + scope + tests).strip()
         if not embedding_text:
             continue
 
         ids.append(document_id)
         documents.append(embedding_text)
-        metadatas.append({"document_id": document_id})
+
+        # ---- ONLY CHANGE: RICH METADATA STORAGE ----
+        metadatas.append({
+            "document_id": document_id,
+            "document_title": title,
+            "summary": summary,
+            "tests": "\n".join(tests) if tests else ""
+        })
 
         if len(ids) >= BATCH_SIZE:
             collection.add(
@@ -91,7 +100,7 @@ def embed_all_scopes() -> int:
 # FASTAPI
 # =========================================================
 
-app = FastAPI(title="Information Embedding API", version="2.0")
+app = FastAPI(title="Information Embedding API", version="2.1")
 
 @app.post("/scope/embed")
 def embed_scope_api():
